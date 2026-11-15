@@ -1,0 +1,164 @@
+﻿Conlang Creator
+A project to apply sound changes, generate words, and export to lingocon.
+
+
+* It should “know” the IPA chart.
+   * It should be able to understand and target each IPA symbol according to its chart position (row ex plosive, column ex bilabial, voice ex unvoiced, or nickname ex sonorant).
+   * It should be able to recognize the upper and lowercase ipa symbols, but only output the lowercase versions.
+   * It should be able to output “long vowel” with the IPA symbol, the macron, or the colon.
+   * It should be able to output “ejectives” with the correct symbol or the straight single apostrophe
+   * Support syllabic sonorants (consonants with small rings under them like r̥)
+   * Support for the laryngeal theory such as h₁, h₂, h₃
+   * Support for superscript letters (bʰ, ɡʷ, ɡʷʰ, ɡʲ, ɡʲʰ) – to be able to receive and transmit them as both superscript and flat digraphs (ɡʷ and gw)
+   * Support for glottal stop with both the standard symbol, the single apostrophe, and the question mark
+   * Support for separators , and / interchangeably 
+   * Support for any standard diacritics (enable and disable discriminating by them)
+   * Toggle between broad and narrow transcription (ex in broad ʀ is treated as r, in narrow, they are considered distinct)
+* Should be allowed to save settings (how to interpret digraphs, which symbols to output, what are vowels, custom groups
+   * Stress rules
+   * Save rules for sound changes (under different names), and apply sound changes in specific orders.
+* It should be able to parse and apply sound changes and spelling changes; should allow any letter to be changed from a vowel to a consonant or back (ex. Treat “w” as a vowel for welsh, but was a consonant in English)
+
+
+Regex
+A note on letter written conventions
+* Orthography: In a linguistics environment, when referring to the actual spelling we use angle brackets to represent the specific letters, for example <ph> which is a digraph used to represent the sound “f” in English.
+* Phonetics: To distinguish it from the spelling, we represent the sound that letters symbolized using slashes, for example the English <ph> “says” /f/ (staph) or sometimes /v/ (Stephen).
+* The parser does not need to understand this convention
+Groups
+* “Groups” are a set of one or more strings designated by a capital letter.
+   * A capital letter always indicates a group. The name cannot contain more than one characters, or any lowercase letters
+   * It uses the syntax of “name = set”
+      * G = {s,dh,rth}
+      * G = {s/dh/rth}
+      * B = {k/g/b}
+   * I want to be able to use either commas or slashes interchangeably.
+   * It should ignore any and all spaces
+   * Each group should be assigned on a new line
+* There should be 2 default groups, V and C, where V is a group containing all vowels, and C is a group containing all Consonants.
+   * It should be easy to create or swap presets for the contents of V and C, because, for example, in English <j> is a consonant, but in IPA /j/ is a vowel.
+* A “Change Group” indicates which sounds may become other sounds, in which environment, and will be explained later. I think it counts as a form of recursion.
+
+
+A Basic Overview of Parts
+	Change
+	Environment
+	Exception
+	Until
+	a -> e
+	#_
+	_s
+	(n/a)
+	a -> e / #_ // _s
+“Change every a into e when a is the first letter of the word, except when it is followed by s”
+	
+
+Change Field (What)
+* “Change” indicates what target will be changed into which result, using the form -> or ➙
+   * To be valid, every reassignment must contain a “change” section
+   * If no other parts are named, the change will happen indiscriminately (a in every single word in the list will turn into e, with no exceptions)
+* The target of change is the first part of the change field, and it is what the program will search for in every given word. 
+   * It can contain an arbitrarily long string.
+   * It can contain an arbitrary number of groups.
+   * It can contain wildcards or optional elements.
+* The change operator is the second part of the change field, and should be ->, though ➙ and > should also be accepted.
+* The result of change is the final part of a change field, and is what the program will turn the target into (assuming there is no environment or exception)
+   * It can contain an arbitrarily long string.
+   * It can contain an arbitrary number of groups.
+      * If the group is the same as in the target, the element remains unchanged.
+         * VG -> VtG means <as> would become <ats> 
+      * If the group is the different, then elements should be chosen randomly, unless it is a “change group”
+         * VG -> VB means <as> would become <ak>, or <ag>, or <ab>.
+      * If it is a change group, then having the target and result be the “same” is fine, since the instructions contain the needed information
+         * VB -> VB
+* Change Groups
+   * Noted during assignment
+      * B* = {b>p;d>t;g>k}
+   * In the change field, match for the “first of each element” (ex b,d,g)
+   * In the result field, match for the “partner” of each element (d>p, so turn d into p)
+   * Supports full environment and exceptions
+      * B* = {b>p; d>t / #_; d>th // #_ ; g>k}
+         * That is, d becomes t at the beginning of a word, otherwise it becomes th
+* “Delete” – sometimes, a certain sound will need to be deleted, in these cases, the result will be ∅ 
+
+
+Environment Field (When)
+If a change should only happen in certain circumstances, those can be indicated in the environment field.
+* “_” indicates the target’s location 
+   * a -> e / t_
+      * “a becomes e if the a comes after a t”
+   * ar -> et / l_l
+      * “ar becomes et if the ar comes between 2 ls”
+   * a -> e / V_
+      * “a becomes e if it comes after another vowel”
+* “#” indicates a word boundary (it represents the space)
+   * Suppose we want to regularize english spelling, and we want to get rid of all silent e’s. To do that, we need to make sure we are only targeting the end of the word. Compare:
+   * o -> ə / _ne
+      * “Oneself” becomes əneself (incorrect)
+      * “Done” becomes “dəne” which is correct
+   * o -> ə / _ne#
+      * “Oneself” does not change (correct)
+      * “Done” becomes “dəne” which is correct
+   * #_ would mean “as the first letter”, and _# would mean “as the last letter”
+* Wildcards
+   * * means wildcard (1) and ** means one or more
+      * dr**n matches drawn and drain, and could also match drone
+   * Groups act as pseudo-wildcards
+      * oBe matches ode, but not oe
+   * Optional but specified elements can be indicated in parentheses
+      * o(d)e matches oe and ode
+      * o(B)e matches oe and obe, ode, oge
+      * o(*)e matches oe and ode but not odde
+      * o(**)e matches oe, ode, and odde
+      * o(BB)e matches oe and odde but not ode (also obde, ogbe, etc)
+      * o(B)be matches oe, ode, and odde (also obe, and obbe, and obde etc)
+* Double result
+   * Suppose we want our spelling reform above to actually work correctly
+      * o*e -> ə*∅ / _ne#
+         * done ➙ dən
+      * Should have the same result as o*e -> ə* / _Ce#
+
+
+
+
+Exception Field (Except When)
+
+
+V->[front]
+	 < i
+	b_
+	e
+	V->[front] / < i // b_ /// e
+“Front every vowel (change every vowel to it’s fronted counterpart) when it comes before i, unless it comes after b, until you reach an e (stop if you reach an e)”
+	
+
+
+
+
+
+* An uppercase letter always refers to a group. If no matching group is found, throw an exception
+   * Lowercase letters are always treated as literals. So while “L” would be a group, “l” would mean <l> or /l/
+* * / means “environment” and can be understood as “when”
+
+
+* * means wildcard (I would like it to mean “exactly 1”, and ** to mean “one or more”
+* () means “optionally” so a(e)r would mean that both ar and aer match.
+   * This should combine with groups, so for example a(G)r would match ar as well as asr, adhr, and arthr.
+* _ means the location of the “target” or the sound we are wanting to change
+   * Change a->e means “change a to e”
+   * “Target” V_V (means, a letter between two vowels)
+   * # means word boundary, so #_ would be “the first letter of a word”
+   * Environment is when to apply a change, written: a->e / #_ (change a to e only when it’s the first letter of a word)
+   * Exception is when NOT to apply a change, written a->e // _# (change a to e except when its the last letter of a word
+   * Support vowel harmony rules ex. When there is an “i”, then all of the preceding vowels get fronted. V->[front] / < i 
+      * Support operators > and < in the environment section
+      * Support groups {} in the environment section
+      * Support labels [front] etc
+   * Stop is when a vowel harmony or other “propogating” rule (using > or <) is finished for a word: V->[front] / < i /// e (front all vowels before i until you hit an e or the word ends)
+   * Support environment and exception and stop on the same line:
+      * V->[front] / < i // s_ /// e (front all vowels before i (except after the letter s) until you hit e
+   *  Able to preview sound changes before applying them (toggle on and off)
+   * Able to run "simultaneous" and “sequential” sound changes
+* Able to read a CSV exported from LingoCon and create a CSV in the same format
+   * Support etymology “changelog”. Able to prompt for a “name” of the old form for the etymology trail (ex. From Old English “wer-” meaning “man”) the popup would let you enter “Old English” or an option for “silent” which means don’t update the etymology.
+* “Picker” where you can click on the ipa table, or you can type in a letter (ex “r”) and it returns only ipa symbols related to your choice (visually or acoustically); it should also show the capital and the (un)voiced version.
