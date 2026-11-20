@@ -5,7 +5,8 @@
     "description": "Phase 2 of OPX",
     "transcription": {
         "mode": "broad",
-        "linked_orthography": true
+        "linked_orthography": true,
+        "simple_link": false
     },
     "inventory": [
         { "grapheme": "ja:", "ipa": "jaː", "class": "V", "features": ["long"] },
@@ -125,5 +126,19 @@
         { "grapheme": "-", "ipa": "ʔ", "class": "Other", "features": ["morpheme_break"] }
     ],
     "groups": {},
-    "rules": []
+    "rule_groups": {
+        "positional_y": {
+            "type": "IPA_to_Orthography",
+            "groups" : [
+                "S* = {ɹ > r, r > ř}",
+                "Q* = {ː > :, ʔ > -}"
+            ], 
+            "rules": [
+                "j -> y / #_, ʔ_, _i(ː) // _j /// e",
+                "S -> S / _V",
+                "Q -> Q"
+            ],
+            "order": "simultaneous"
+        }
+    }
 }
