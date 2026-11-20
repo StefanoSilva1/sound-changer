@@ -1,7 +1,10 @@
 from dataclasses import dataclass
 import json
 from pathlib import Path
+from turtle import left
+from turtle import right
 import unicodedata
+import re
 
 @dataclass(frozen=True)
 class GraphemeToken: #matches JSON structure
@@ -21,6 +24,12 @@ class ChangeToken:
     target: str
     result: str
     environment: dict
+
+@dataclass(frozen=True)
+class EnvironmentToken:
+    left: str
+    right: str
+    type: str
 
 @dataclass(frozen=True)
 class IntermediateRuleToken:
@@ -59,7 +68,106 @@ class IPAParser:
                     grouped_rules.append(parsed_rule)
 
         #print(f"Grouped targets: {grouped_targets}")
-        print(f"Grouped rules: {grouped_rules}")
+        #print(f"Grouped rules: {grouped_rules}")
+
+        change_operators: list[str] = sorted(
+            data["personal_settings"]["operators"]["assignment"],
+            key=len,
+            reverse=True
+        )
+
+        target_operators: list[str] = sorted(
+            data["personal_settings"]["operators"]["target"],
+            key=len,
+            reverse=True
+        )
+        print(f"Target operators: {target_operators}")
+
+        for token in grouped_rules:
+            change = token.change
+
+            for operator in change_operators:
+                if operator in change:
+                    fields = change.split(operator)
+                    target = fields[0].strip()
+                    result = fields[1].strip()
+                    break
+
+            environment_tokens = self.make_environment_tokens(
+                token.environment,
+                "environment",
+                target_operators
+            )
+
+            exception_tokens = self.make_environment_tokens(
+                token.exceptions,
+                "exception",
+                target_operators
+            )
+
+            stop_tokens = self.make_environment_tokens(
+                token.stops,
+                "stop",
+                target_operators
+            )
+
+            all_environment_tokens = environment_tokens + exception_tokens + stop_tokens
+
+            x = ChangeToken(
+                target = target,
+                result = result,
+                environment = all_environment_tokens
+            )
+            print(x)
+
+    def make_environment_tokens(
+            self,
+            conditions: list[str],
+            token_type: str,
+            target_operators: list[str]
+    ) -> list[EnvironmentToken]:
+
+        environment_tokens:list[EnvironmentToken] = []
+
+        for symbol in target_operators:
+            for item in conditions:
+                if symbol in item:
+                    fields = item.split(symbol)
+                    left = fields[0].strip()
+                    right = fields[1].strip()
+
+                    pattern = r"\((.*?)\)" #regex pattern to match anything inside parentheses
+
+                    left_match = re.search(pattern, left)
+                    right_match = re.search(pattern, right)
+
+                    if left_match:
+                        left_optional = left_match.group(1)
+                        left_with_optional = left.replace(f"{left_optional}", left_optional)
+                        left_without_optional = left.replace(f"{left_optional}", "")
+                        left_options:list[str] = [left_with_optional, left_without_optional]
+                    else:
+                        left_options:list[str] = [left]
+
+                    if right_match:
+                        right_optional = right_match.group(1)
+                        right_with_optional = right.replace(f"({right_optional})", right_optional)
+                        right_without_optional = right.replace(f"({right_optional})", "")
+                        right_options:list[str] = [right_with_optional, right_without_optional]
+                    else:
+                        right_options:list[str] = [right]
+
+                    for left_option in left_options:
+                        for right_option in right_options:
+                            environment_tokens.append(
+                                EnvironmentToken(
+                                    left=left_option,
+                                    right=right_option,
+                                    type=token_type
+                                )
+                            )
+
+        return environment_tokens
 
     def make_group_tokens(self, group:str) -> dict:
         group_name:str = group[0]
@@ -69,6 +177,7 @@ class IPAParser:
             group_type:str = "standard"
         group_content: list[dict] = []
         contents: list[str] = group.split("{", 1)[1].split("}", 1)[0].split(",")
+        # we can only split multiple times because we know that the first "{" and the last "}" are the ones that matter. If there are any other "{" or "}" in the middle, they will be part of the contents, and we don't want to split on those. Additionally, we can do the split again on the comma only because the first part returned only one string rather than a list
         contents = [item.strip() for item in contents]
         for item in contents:
             sides: list[str] = item.split(">")
@@ -102,7 +211,12 @@ class IPAParser:
         exceptions: list[str] = [part.strip() for part in contents[1:]]
 
         contents = contents[0].split("/")
-        environment: list[str] = [part.strip() for part in contents[1:]]
+        environment: list[str] = []
+        int_environment: list[str] = [part.strip() for part in contents[1:]]
+        for each in int_environment:
+            part: list[str] = each.split(",") #split the environment into a list of strings, so that we can process each part separately
+            environment.extend(part)
+        environment = [item.strip() for item in environment]
 
         change: str = contents[0].strip()
 

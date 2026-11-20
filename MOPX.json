@@ -8,6 +8,12 @@
         "linked_orthography": true,
         "simple_link": false
     },
+    "personal_settings": {
+        "operators": {
+            "assignment": ["-->", "->", ">"],
+            "target": ["_"]
+        }
+    },
     "inventory": [
         { "grapheme": "ja:", "ipa": "jaː", "class": "V", "features": ["long"] },
         { "grapheme": "ja", "ipa": "ja", "class": "V", "features": [] },
