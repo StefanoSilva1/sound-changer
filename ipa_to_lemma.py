@@ -1,14 +1,12 @@
 from dataclasses import dataclass
 import json
 from pathlib import Path
-from turtle import left
-from turtle import right
 import unicodedata
 import re
 
 @dataclass(frozen=True)
 class GraphemeToken: #matches JSON structure
-    grapheme: set
+    grapheme: str
     ipa: str
     phoneme_class: str
     features: tuple[str, ...]
@@ -24,6 +22,7 @@ class ChangeToken:
     target: str
     result: str
     environment: dict
+    stops: tuple[str, ...] = tuple() #default to empty tuple if not provided
 
 @dataclass(frozen=True)
 class EnvironmentToken:
@@ -67,7 +66,7 @@ class IPAParser:
                     parsed_rule: dict = self.make_rule_tokens(rule)
                     grouped_rules.append(parsed_rule)
 
-        #print(f"Grouped targets: {grouped_targets}")
+        # print(f"Grouped targets: {grouped_targets}")
         #print(f"Grouped rules: {grouped_rules}")
 
         change_operators: list[str] = sorted(
@@ -81,7 +80,6 @@ class IPAParser:
             key=len,
             reverse=True
         )
-        print(f"Target operators: {target_operators}")
 
         for token in grouped_rules:
             change = token.change
@@ -105,20 +103,17 @@ class IPAParser:
                 target_operators
             )
 
-            stop_tokens = self.make_environment_tokens(
-                token.stops,
-                "stop",
-                target_operators
-            )
-
-            all_environment_tokens = environment_tokens + exception_tokens + stop_tokens
+            all_environment_tokens = environment_tokens + exception_tokens
 
             x = ChangeToken(
                 target = target,
                 result = result,
-                environment = all_environment_tokens
+                environment = all_environment_tokens,
+                stops = tuple(token.stops)
             )
-            print(x)
+            grouped_targets.append(x)
+
+        print(f"Final grouped targets: {grouped_targets}")
 
     def make_environment_tokens(
             self,
@@ -136,26 +131,8 @@ class IPAParser:
                     left = fields[0].strip()
                     right = fields[1].strip()
 
-                    pattern = r"\((.*?)\)" #regex pattern to match anything inside parentheses
-
-                    left_match = re.search(pattern, left)
-                    right_match = re.search(pattern, right)
-
-                    if left_match:
-                        left_optional = left_match.group(1)
-                        left_with_optional = left.replace(f"{left_optional}", left_optional)
-                        left_without_optional = left.replace(f"{left_optional}", "")
-                        left_options:list[str] = [left_with_optional, left_without_optional]
-                    else:
-                        left_options:list[str] = [left]
-
-                    if right_match:
-                        right_optional = right_match.group(1)
-                        right_with_optional = right.replace(f"({right_optional})", right_optional)
-                        right_without_optional = right.replace(f"({right_optional})", "")
-                        right_options:list[str] = [right_with_optional, right_without_optional]
-                    else:
-                        right_options:list[str] = [right]
+                    left_options = expand_optionals(left)
+                    right_options = expand_optionals(right)
 
                     for left_option in left_options:
                         for right_option in right_options:
@@ -176,7 +153,7 @@ class IPAParser:
         else:
             group_type:str = "standard"
         group_content: list[dict] = []
-        contents: list[str] = group.split("{", 1)[1].split("}", 1)[0].split(",")
+        contents: list[str] = group.split("{", 1)[1].split("}", 1)[0].split(";")
         # we can only split multiple times because we know that the first "{" and the last "}" are the ones that matter. If there are any other "{" or "}" in the middle, they will be part of the contents, and we don't want to split on those. Additionally, we can do the split again on the comma only because the first part returned only one string rather than a list
         contents = [item.strip() for item in contents]
         for item in contents:
@@ -229,11 +206,14 @@ class IPAParser:
         )
 
         return rule_return
-
-              
         
-        
-
+def expand_optionals(pattern:str) -> list[str]:
+        match = re.search(r"\(([^()]*)\)", pattern)
+        if not match:
+            return [pattern]
+        with_optional = pattern[:match.start()] + match.group(1) + pattern[match.end():]
+        without_optional = pattern[:match.start()] + pattern[match.end():]
+        return list(dict.fromkeys(expand_optionals(with_optional) + expand_optionals(without_optional)))  # Remove duplicates while preserving order
 
 if __name__ == "__main__":
     parser = IPAParser("MOPX.json", strict=False)

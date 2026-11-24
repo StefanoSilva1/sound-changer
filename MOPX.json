@@ -136,12 +136,12 @@
         "positional_y": {
             "type": "IPA_to_Orthography",
             "groups" : [
-                "S* = {ɹ > r, r > ř}",
-                "Q* = {ː > :, ʔ > -}"
+                "S* = {ɹ > r; r > ř}",
+                "Q* = {ː > :; ʔ > -}"
             ], 
             "rules": [
                 "j -> y / #_, ʔ_, _i(ː) // _j /// e",
-                "S -> S / _V",
+                "S -> S ",
                 "Q -> Q"
             ],
             "order": "simultaneous"
